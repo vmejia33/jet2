@@ -83,6 +83,7 @@ import androidx.compose.material3.adaptive.occludingVerticalHingeBounds
 import androidx.compose.material3.adaptive.separatingVerticalHingeBounds
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -378,22 +379,27 @@ private fun HomeAppBar(
     isExpanded: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val viewModel: HomeViewModel = hiltViewModel()
+
+    val searchText by viewModel.searchText.collectAsState()
+    val isSearching by viewModel.isSearching.collectAsState()
+
     Row(
         horizontalArrangement = Arrangement.End,
         modifier = modifier
             .fillMaxWidth()
             .background(Color.Transparent)
-            .padding(end = 16.dp, top = 8.dp, bottom = 8.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
     ) {
         SearchBar(
-            query = "",
-            onQueryChange = {},
+            query = searchText,
+            onQueryChange = { viewModel.onSearchTextChange(it) },
             placeholder = {
                 Text(stringResource(id = R.string.search_for_a_podcast))
             },
-            onSearch = {},
+            onSearch = { viewModel.onSearchTextChange(it) },
             active = false,
-            onActiveChange = {},
+            onActiveChange = { viewModel.onToggleSearch() },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
@@ -436,7 +442,7 @@ private fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     // Effect that changes the home category selection when there are no subscribed podcasts
-    LaunchedEffect(key1 = homeState.featuredPodcasts) {
+    LaunchedEffect(homeState.featuredPodcasts) {
         if (homeState.featuredPodcasts.isEmpty()) {
             homeState.onHomeCategorySelected(HomeCategory.Discover)
         }
