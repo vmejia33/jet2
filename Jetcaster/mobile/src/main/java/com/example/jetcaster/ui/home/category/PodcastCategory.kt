@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalSharedTransitionApi::class, ExperimentalSharedTransitionApi::class)
+
 package com.example.jetcaster.ui.home.category
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.items
@@ -49,43 +51,20 @@ import com.example.jetcaster.core.model.PodcastInfo
 import com.example.jetcaster.core.player.model.PlayerEpisode
 import com.example.jetcaster.designsystem.component.PodcastImage
 import com.example.jetcaster.designsystem.theme.Keyline1
+import com.example.jetcaster.ui.LocalAnimatedVisibilityScope
+import com.example.jetcaster.ui.LocalSharedTransitionScope
 import com.example.jetcaster.ui.shared.EpisodeListItem
 import com.example.jetcaster.ui.theme.JetcasterTheme
 import com.example.jetcaster.util.ToggleFollowPodcastIconButton
 import com.example.jetcaster.util.fullWidthItem
-
-fun LazyListScope.podcastCategory(
-    podcastCategoryFilterResult: PodcastCategoryFilterResult,
-    navigateToPodcastDetails: (PodcastInfo) -> Unit,
-    navigateToPlayer: (EpisodeInfo) -> Unit,
-    onQueueEpisode: (PlayerEpisode) -> Unit,
-    onTogglePodcastFollowed: (PodcastInfo) -> Unit,
-) {
-    item {
-        CategoryPodcasts(
-            topPodcasts = podcastCategoryFilterResult.topPodcasts,
-            navigateToPodcastDetails = navigateToPodcastDetails,
-            onTogglePodcastFollowed = onTogglePodcastFollowed
-        )
-    }
-
-    val episodes = podcastCategoryFilterResult.episodes
-    items(episodes, key = { it.episode.uri }) { item ->
-        EpisodeListItem(
-            episode = item.episode,
-            podcast = item.podcast,
-            onClick = navigateToPlayer,
-            onQueueEpisode = onQueueEpisode,
-            modifier = Modifier.fillParentMaxWidth()
-        )
-    }
-}
 
 fun LazyGridScope.podcastCategory(
     podcastCategoryFilterResult: PodcastCategoryFilterResult,
     navigateToPodcastDetails: (PodcastInfo) -> Unit,
     navigateToPlayer: (EpisodeInfo) -> Unit,
     onQueueEpisode: (PlayerEpisode) -> Unit,
+    removeFromQueue: (EpisodeInfo) -> Unit,
+
     onTogglePodcastFollowed: (PodcastInfo) -> Unit,
 ) {
     fullWidthItem {
@@ -98,13 +77,29 @@ fun LazyGridScope.podcastCategory(
 
     val episodes = podcastCategoryFilterResult.episodes
     items(episodes, key = { it.episode.uri }) { item ->
-        EpisodeListItem(
-            episode = item.episode,
-            podcast = item.podcast,
-            onClick = navigateToPlayer,
-            onQueueEpisode = onQueueEpisode,
-            modifier = Modifier.fillMaxWidth()
-        )
+        val sharedTransitionScope = LocalSharedTransitionScope.current
+            ?: throw IllegalStateException("No SharedElementScope found")
+        val animatedVisibilityScope = LocalAnimatedVisibilityScope.current
+            ?: throw IllegalStateException("No SharedElementScope found")
+        with(sharedTransitionScope) {
+            EpisodeListItem(
+                episode = item.episode,
+                podcast = item.podcast,
+                onClick = navigateToPlayer,
+                onQueueEpisode = onQueueEpisode,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateItem(),
+                imageModifier = Modifier.sharedElement(
+                    state = rememberSharedContentState(
+                        key = item.episode.title
+                    ),
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    clipInOverlayDuringTransition = OverlayClip(MaterialTheme.shapes.medium)
+                ),
+                removeFromQueue = removeFromQueue,
+            )
+        }
     }
 }
 
@@ -112,7 +107,7 @@ fun LazyGridScope.podcastCategory(
 private fun CategoryPodcasts(
     topPodcasts: List<PodcastInfo>,
     navigateToPodcastDetails: (PodcastInfo) -> Unit,
-    onTogglePodcastFollowed: (PodcastInfo) -> Unit
+    onTogglePodcastFollowed: (PodcastInfo) -> Unit,
 ) {
     CategoryPodcastRow(
         podcasts = topPodcasts,
@@ -127,7 +122,7 @@ private fun CategoryPodcastRow(
     podcasts: List<PodcastInfo>,
     onTogglePodcastFollowed: (PodcastInfo) -> Unit,
     navigateToPodcastDetails: (PodcastInfo) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     LazyRow(
         modifier = modifier,
@@ -180,7 +175,7 @@ private fun TopPodcastRowItem(
                     .fillMaxSize()
                     .clip(MaterialTheme.shapes.medium),
                 podcastImageUrl = podcastImageUrl,
-                contentDescription = podcastTitle
+                contentDescription = podcastTitle,
             )
 
             ToggleFollowPodcastIconButton(
